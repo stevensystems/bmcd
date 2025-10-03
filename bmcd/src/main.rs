@@ -202,6 +202,6 @@ fn load_tls_config(config: &Config) -> anyhow::Result<SslAcceptorBuilder> {
     let (private_key, cert) = load_keys_from_pem(&config.tls.private_key, &config.tls.certificate)?;
     let mut tls = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
     tls.set_private_key(&private_key)?;
-    tls.set_certificate_chain_file(&cert)?;
+    tls.set_certificate(&cert)?;
     Ok(tls)
 }
