@@ -179,7 +179,7 @@ fn config_path() -> PathBuf {
 fn load_keys_from_pem<P: AsRef<Path>>(
     private_key: P,
     certificate: P,
-) -> anyhow::Result<(PKey<Private>, X509)> {
+) -> anyhow::Result<(PKey<Private>, Vec<X509>)> {
     let mut pkey = Vec::new();
     let mut cert = Vec::new();
     OpenOptions::new()
@@ -194,14 +194,23 @@ fn load_keys_from_pem<P: AsRef<Path>>(
         .read_to_end(&mut cert)?;
 
     let rsa_key = PKey::private_key_from_pem(&pkey)?;
-    let x509 = X509::from_pem(&cert)?;
+    let x509 = X509::stack_from_pem(&cert)?;
     Ok((rsa_key, x509))
 }
 
 fn load_tls_config(config: &Config) -> anyhow::Result<SslAcceptorBuilder> {
-    let (private_key, cert) = load_keys_from_pem(&config.tls.private_key, &config.tls.certificate)?;
+    let (private_key, certs) = load_keys_from_pem(&config.tls.private_key, &config.tls.certificate)?;
     let mut tls = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
     tls.set_private_key(&private_key)?;
-    tls.set_certificate(&cert)?;
+    let leaf_cert = &certs[0];
+    let has_intermediates = certs.len() > 1;
+
+    tls.set_certificate(leaf_cert)?;
+    
+    if has_intermediates {
+        for cert in &certs[1..] {
+            tls.add_extra_chain_cert(cert.to_owned())?;
+        }
+    }
     Ok(tls)
 }
